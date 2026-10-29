@@ -1,0 +1,591 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Lesní Deník">
+    <meta name="theme-color" content="#111827">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2315803d'/><path d='M50 18 L22 58 L38 58 L26 82 L74 82 L62 58 L78 58 Z' fill='%23ffffff'/></svg>">
+    <title>Lesní Deník Pro</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body { -webkit-tap-highlight-color: transparent; user-select: none; background: #f3f4f6; font-family: -apple-system, BlinkMacSystemFont, sans-serif; overscroll-behavior-y: none; }
+        input, textarea, select { user-select: auto; font-size: 16px !important; }
+        .safe-top { padding-top: max(12px, env(safe-area-inset-top)); }
+        .safe-bottom { padding-bottom: max(16px, env(safe-area-inset-bottom)); }
+        .ios-card { background: #fff; border-radius: 14px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+        .tab-active { color: #15803d; font-weight: 700; }
+        .tab-inactive { color: #6b7280; }
+    </style>
+</head>
+<body class="h-screen w-screen overflow-hidden flex flex-col bg-gray-100">
+
+    <!-- HORNÍ LIŠTA -->
+    <header class="bg-gray-900 text-white safe-top px-4 pb-3 shadow-md flex items-center justify-between shrink-0 z-20">
+        <div class="flex items-center space-x-2">
+            <span class="text-xl">🌲</span>
+            <h1 id="headerTitle" class="text-lg font-bold">Zápis směny</h1>
+        </div>
+        <a id="topGeoLink" href="https://geoportal.lesycr.cz/" target="_blank" rel="noopener" class="text-xs bg-green-700 active:bg-green-600 text-white px-3 py-1.5 rounded-lg font-semibold flex items-center space-x-1 shadow-sm">
+            <span>🗺️</span>
+            <span>Geoportál LČR ↗</span>
+        </a>
+    </header>
+
+    <!-- HLAVNÍ OBSAH -->
+    <main class="flex-1 overflow-y-auto px-4 pt-3 pb-24 space-y-4" id="mainContainer">
+
+        <!-- 1. ZÁPIS SMĚNY -->
+        <section id="tab-shift" class="space-y-4">
+            <div class="ios-card p-4 space-y-3">
+                <div class="text-xs font-bold uppercase text-gray-400">Směna & Lokalita</div>
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2.5">
+                    <label class="text-sm font-medium text-gray-700">Datum</label>
+                    <input type="date" id="shiftDate" class="text-right font-semibold text-gray-900 bg-transparent focus:outline-none">
+                </div>
+                <div class="flex items-center justify-between border-b border-gray-100 pb-2.5">
+                    <label class="text-sm font-medium text-gray-700">Aktuální stroj</label>
+                    <select id="shiftMachine" onchange="onShiftMachineChange()" class="text-right font-semibold text-green-700 bg-transparent focus:outline-none"></select>
+                </div>
+                <div class="pt-1 space-y-2.5">
+                    <div class="flex items-center justify-between">
+                        <label class="text-sm font-medium text-gray-700">Porost</label>
+                        <input type="text" id="shiftPorost" placeholder="např. 410A1" class="text-right font-bold text-gray-900 bg-gray-100 px-3 py-1.5 rounded-lg w-40 uppercase focus:outline-none focus:ring-2 focus:ring-green-600">
+                    </div>
+                    <a id="mainGeoLink" href="https://geoportal.lesycr.cz/" target="_blank" rel="noopener" class="w-full bg-green-50 active:bg-green-100 border border-green-300 text-green-800 font-semibold py-2.5 px-3 rounded-xl text-xs flex items-center justify-between">
+                        <span>🗺️ Otevřít Porostní mapu LČR (GPS v prohlížeči)</span>
+                        <span class="font-bold">↗</span>
+                    </a>
+                </div>
+            </div>
+
+            <div class="ios-card p-4 space-y-3">
+                <div class="flex justify-between items-center">
+                    <span class="text-xs font-bold uppercase text-gray-400">Motohodiny (Mth)</span>
+                    <span id="lastMthHint" class="text-[11px] text-gray-400"></span>
+                </div>
+                <div class="grid grid-cols-2 gap-3">
+                    <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-200">
+                        <label class="block text-xs text-gray-500 mb-1">Počáteční stav</label>
+                        <input type="text" inputmode="decimal" id="shiftStartMth" oninput="recalcShift()" placeholder="0.0" class="w-full font-bold text-lg text-gray-900 bg-transparent focus:outline-none">
+                    </div>
+                    <div class="bg-gray-50 p-2.5 rounded-xl border border-gray-200">
+                        <label class="block text-xs text-gray-500 mb-1">Koncový stav</label>
+                        <input type="text" inputmode="decimal" id="shiftEndMth" oninput="recalcShift()" placeholder="0.0" class="w-full font-bold text-lg text-gray-900 bg-transparent focus:outline-none">
+                    </div>
+                </div>
+                <div class="flex items-center justify-between bg-amber-50 px-3 py-2 rounded-xl border border-amber-200/70">
+                    <span class="text-xs font-medium text-amber-900">Odpracováno za směnu:</span>
+                    <span id="shiftWorkedHours" class="text-base font-extrabold text-amber-700">0.0 Mth</span>
+                </div>
+            </div>
+
+            <div class="ios-card p-4 space-y-3">
+                <div class="text-xs font-bold uppercase text-gray-400">Výkon (Kubíky)</div>
+                <div class="flex items-center justify-between bg-gray-50 p-3 rounded-xl border border-gray-200">
+                    <label class="text-sm font-medium text-gray-700">Zpracováno celkem (m³)</label>
+                    <input type="text" inputmode="decimal" id="shiftVolume" oninput="recalcShift()" placeholder="0.0" class="w-28 text-right font-extrabold text-xl text-green-700 bg-transparent focus:outline-none">
+                </div>
+                <div class="flex items-center justify-between px-1 text-xs text-gray-500">
+                    <span>Průměrný hodinový výkon:</span>
+                    <span id="shiftProductivity" class="font-bold text-blue-600">0.0 m³ / Mth</span>
+                </div>
+            </div>
+
+            <div class="ios-card p-4 space-y-2">
+                <div class="text-xs font-bold uppercase text-gray-400">Poznámka ze směny</div>
+                <textarea id="shiftNote" rows="2" placeholder="Terén, dřevina, opravy, nafta..." class="w-full text-sm text-gray-800 bg-gray-50 p-2.5 rounded-xl border border-gray-200 focus:outline-none"></textarea>
+            </div>
+
+            <button onclick="saveShift()" class="w-full bg-green-700 active:bg-green-800 text-white font-bold py-3.5 rounded-xl shadow-md flex items-center justify-center space-x-2">
+                <span>✅</span><span>Uložit směnu do deníku</span>
+            </button>
+        </section>
+
+        <!-- 2. PŘEHLEDY -->
+        <section id="tab-dashboard" class="space-y-4 hidden">
+            <div class="ios-card p-3 space-y-2.5">
+                <div class="flex items-center justify-between">
+                    <button onclick="changeMonth(-1)" class="p-2 bg-gray-100 rounded-lg font-bold text-gray-700">◀</button>
+                    <div id="dashMonthLabel" class="font-bold text-base text-gray-900">Říjen 2026</div>
+                    <button onclick="changeMonth(1)" class="p-2 bg-gray-100 rounded-lg font-bold text-gray-700">▶</button>
+                </div>
+                <div class="flex items-center justify-between border-t border-gray-100 pt-2">
+                    <span class="text-xs font-medium text-gray-500">Filtr stroje:</span>
+                    <select id="dashMachineFilter" onchange="renderDashboard()" class="text-sm font-semibold text-green-700 bg-transparent focus:outline-none"></select>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <div class="ios-card p-3.5 border-l-4 border-green-600">
+                    <div class="text-[11px] font-semibold text-gray-400 uppercase">Celkem kubíků</div>
+                    <div id="dashTotalM3" class="text-xl font-extrabold text-gray-900 mt-1">0.0 m³</div>
+                </div>
+                <div class="ios-card p-3.5 border-l-4 border-amber-500">
+                    <div class="text-[11px] font-semibold text-gray-400 uppercase">Odpracováno</div>
+                    <div id="dashTotalMth" class="text-xl font-extrabold text-gray-900 mt-1">0.0 Mth</div>
+                </div>
+                <div class="ios-card p-3.5 border-l-4 border-blue-500">
+                    <div class="text-[11px] font-semibold text-gray-400 uppercase">Průměrný výkon</div>
+                    <div id="dashAvgProd" class="text-lg font-bold text-gray-900 mt-1">0.0 m³/h</div>
+                </div>
+                <div class="ios-card p-3.5 border-l-4 border-purple-500">
+                    <div class="text-[11px] font-semibold text-gray-400 uppercase">Počet směn</div>
+                    <div id="dashShiftCount" class="text-lg font-bold text-gray-900 mt-1">0 dní</div>
+                </div>
+            </div>
+
+            <button onclick="shareMonthlyReport()" class="w-full bg-blue-600 active:bg-blue-700 text-white font-semibold py-2.5 rounded-xl shadow-sm text-sm flex items-center justify-center space-x-2">
+                <span>📤</span><span>Zkopírovat / Sdílet měsíční výkaz</span>
+            </button>
+
+            <div class="space-y-2">
+                <div class="text-xs font-bold uppercase text-gray-400 px-1">Historie směn v měsíci</div>
+                <div id="dashShiftList" class="space-y-2.5"></div>
+            </div>
+        </section>
+
+        <!-- 3. SERVIS -->
+        <section id="tab-service" class="space-y-4 hidden">
+            <div class="ios-card p-4 space-y-2.5">
+                <div class="flex items-center justify-between">
+                    <span class="text-xs font-bold uppercase text-gray-400">Vybraný stroj</span>
+                    <select id="serviceMachineSelect" onchange="renderService()" class="font-bold text-green-700 bg-gray-100 px-3 py-1 rounded-lg focus:outline-none"></select>
+                </div>
+                <div class="flex items-center justify-between border-t border-gray-100 pt-2">
+                    <span class="text-xs text-gray-500">Aktuální stav počítadla (ze směn):</span>
+                    <span id="serviceCurrentMth" class="font-extrabold text-base text-gray-900">0.0 Mth</span>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-2.5">
+                <button onclick="openServiceModal('plan')" class="bg-green-700 text-white font-semibold py-2.5 px-3 rounded-xl text-xs shadow-sm">➕ Nový interval (500/1000)</button>
+                <button onclick="openServiceModal('adhoc')" class="bg-amber-600 text-white font-semibold py-2.5 px-3 rounded-xl text-xs shadow-sm">🔧 Mimořádná oprava</button>
+            </div>
+
+            <div class="space-y-2">
+                <div class="text-xs font-bold uppercase text-gray-400 px-1">Hlídání servisních intervalů</div>
+                <div id="servicePlansList" class="space-y-2.5"></div>
+            </div>
+
+            <div class="space-y-2 pt-2">
+                <div class="text-xs font-bold uppercase text-gray-400 px-1">Historie údržby a oprav</div>
+                <div id="serviceLogsList" class="space-y-2"></div>
+            </div>
+        </section>
+
+        <!-- 4. NASTAVENÍ A MANAŽERSKÝ REŽIM (VEDOUCÍ) -->
+        <section id="tab-settings" class="space-y-4 hidden">
+            
+            <!-- MANAŽERSKÝ REŽIM PRO VEDOUCÍHO -->
+            <div class="ios-card p-4 space-y-3 border-2 border-indigo-600 bg-indigo-50/40">
+                <div class="text-xs font-bold uppercase text-indigo-900">👨‍💼 Manažerský režim (Pro vedoucího)</div>
+                <p class="text-[11px] text-gray-600">
+                    Tlačítkem níže vygeneruješ datový soubor pro šéfa. Když ho vedoucí obdrží a klikne na něj, nebo ho sem nahraje, uvidí souhrnný přehled kubíků, směn a servisů.
+                </p>
+                <button onclick="exportBossFile()" class="w-full bg-indigo-600 active:bg-indigo-700 text-white font-bold py-3 rounded-xl text-sm flex items-center justify-center space-x-2">
+                    <span>📤</span>
+                    <span>Odeslat / Exportovat data pro vedoucího</span>
+                </button>
+
+                <div class="pt-2 border-t border-indigo-100">
+                    <label class="w-full bg-white border border-indigo-300 text-indigo-900 font-semibold py-2.5 rounded-xl text-xs flex items-center justify-center space-x-2 cursor-pointer active:scale-95">
+                        <span>📂 Načíst data od operátora (Zobrazit přehled)</span>
+                        <input type="file" id="importBossFile" accept=".lesnidata,.json" onchange="loadBossData(event)" class="hidden">
+                    </label>
+                </div>
+            </div>
+
+            <!-- Správa strojů -->
+            <div class="ios-card p-4 space-y-3">
+                <div class="text-xs font-bold uppercase text-gray-400">Správa strojů</div>
+                <div id="settingsMachinesList" class="space-y-2"></div>
+                <div class="flex space-x-2 pt-2 border-t border-gray-100">
+                    <input type="text" id="newMachineInput" placeholder="Název nového stroje" class="flex-1 bg-gray-100 px-3 py-2 rounded-lg text-sm focus:outline-none">
+                    <button onclick="addMachine()" class="bg-green-700 text-white font-bold px-4 py-2 rounded-lg text-xs">Přidat stroj</button>
+                </div>
+            </div>
+
+            <div class="ios-card p-4 space-y-2.5">
+                <div class="text-xs font-bold uppercase text-gray-400">Odkaz na Geoportál LČR</div>
+                <input type="url" id="geoportalUrlInput" class="w-full bg-gray-100 px-3 py-2 rounded-lg text-xs text-gray-800 focus:outline-none">
+                <button onclick="saveGeoportalUrl()" class="w-full bg-green-700 text-white font-bold py-2 rounded-lg text-xs">Uložit odkaz na mapu</button>
+            </div>
+
+            <div class="ios-card p-4 space-y-3">
+                <div class="text-xs font-bold uppercase text-gray-400">Záloha dat v telefonu</div>
+                <button onclick="exportBackupFile()" class="w-full bg-gray-900 text-white font-semibold py-2.5 rounded-xl text-xs">💾 Stáhnout kompletní zálohu (.json)</button>
+            </div>
+        </section>
+    </main>
+
+    <!-- MODÁL PRO SERVIS -->
+    <div id="serviceModal" class="fixed inset-0 bg-black/60 z-50 hidden flex items-end sm:items-center justify-center">
+        <div class="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl p-5 space-y-3">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h3 id="modalTitle" class="font-bold text-base">Nový servisní interval</h3>
+                <button onclick="closeServiceModal()" class="text-gray-400 font-bold text-lg px-2">✕</button>
+            </div>
+            <div id="modalTemplatesSection" class="flex flex-wrap gap-1.5">
+                <button onclick="fillTemplate(500)" class="text-xs bg-green-100 text-green-800 px-2.5 py-1.5 rounded-lg font-medium">Malý (500 Mth)</button>
+                <button onclick="fillTemplate(1000)" class="text-xs bg-blue-100 text-blue-800 px-2.5 py-1.5 rounded-lg font-medium">Velký (1000 Mth)</button>
+                <button onclick="fillTemplate(250)" class="text-xs bg-amber-100 text-amber-800 px-2.5 py-1.5 rounded-lg font-medium">Mazání (250 Mth)</button>
+            </div>
+            <input type="text" id="modalTitleInput" placeholder="Název (např. Malý servis 500 Mth)" class="w-full bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold">
+            <div id="modalIntervalBox">
+                <label class="block text-xs text-gray-500 mb-1">Interval opakování (Mth)</label>
+                <input type="text" inputmode="decimal" id="modalIntervalInput" value="500" class="w-full bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold">
+            </div>
+            <div>
+                <label id="modalDoneAtLabel" class="block text-xs text-gray-500 mb-1">Naposledy uděláno při (Mth)</label>
+                <input type="text" inputmode="decimal" id="modalLastDoneInput" class="w-full bg-gray-100 px-3 py-2 rounded-lg text-sm font-semibold">
+            </div>
+            <textarea id="modalTasksInput" rows="3" placeholder="Seznam filtrů, olejů a úkonů..." class="w-full bg-gray-100 p-2.5 rounded-lg text-sm"></textarea>
+            <div class="flex space-x-2 pt-1">
+                <button onclick="closeServiceModal()" class="flex-1 bg-gray-200 text-gray-700 font-semibold py-2.5 rounded-xl text-sm">Zrušit</button>
+                <button onclick="saveServiceModal()" class="flex-1 bg-green-700 text-white font-bold py-2.5 rounded-xl text-sm">Uložit</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- SPECIÁLNÍ MODÁLNÍ OKNO PRO VEDOUCÍHO (PŘEHLED) -->
+    <div id="bossModal" class="fixed inset-0 bg-black/70 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white w-full max-w-lg rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center border-b pb-2">
+                <h3 class="font-bold text-lg text-indigo-900">📊 Manažerský přehled (Data od operátora)</h3>
+                <button onclick="closeBossModal()" class="text-gray-400 font-bold text-xl px-2">✕</button>
+            </div>
+            <div id="bossModalContent" class="space-y-4 text-sm text-gray-700">
+                <!-- Zde se dynamicky vykreslí souhrn pro šéfa -->
+            </div>
+            <button onclick="closeBossModal()" class="w-full bg-indigo-600 text-white font-bold py-3 rounded-xl text-sm">Zavřít přehled</button>
+        </div>
+    </div>
+
+    <!-- TOAST -->
+    <div id="toast" class="fixed top-14 left-1/2 -translate-x-1/2 bg-gray-900 text-white px-4 py-2 rounded-full shadow-lg text-xs font-semibold z-50 hidden">Uloženo</div>
+
+    <!-- SPODNÍ PANEL -->
+    <nav class="fixed bottom-0 inset-x-0 bg-white border-t border-gray-200 safe-bottom pt-2 px-2 flex justify-around items-center z-30">
+        <button onclick="switchTab('shift')" id="nav-shift" class="flex flex-col items-center tab-active w-20"><span class="text-xl">🚜</span><span class="text-[10px]">Směna</span></button>
+        <button onclick="switchTab('dashboard')" id="nav-dashboard" class="flex flex-col items-center tab-inactive w-20"><span class="text-xl">📊</span><span class="text-[10px]">Přehledy</span></button>
+        <button onclick="switchTab('service')" id="nav-service" class="flex flex-col items-center tab-inactive w-20 relative"><span class="text-xl">🔧</span><span class="text-[10px]">Servis</span><span id="serviceAlertDot" class="w-2.5 h-2.5 bg-red-600 rounded-full absolute top-0 right-5 hidden"></span></button>
+        <button onclick="switchTab('settings')" id="nav-settings" class="flex flex-col items-center tab-inactive w-20"><span class="text-xl">⚙️</span><span class="text-[10px]">Nastavení</span></button>
+    </nav>
+
+    <script>
+        const STORAGE_KEY = 'lesni_denik_pro_v1';
+        const defaultData = {
+            geoportalUrl: "https://geoportal.lesycr.cz/",
+            machines: ["Harvester", "Vyvážečka"],
+            shifts: [],
+            servicePlans: [
+                { id: "p1", machine: "Harvester", title: "Malý servis (500 Mth)", intervalMth: 500, lastDoneMth: 0, tasks: "Motorový olej + filtr, naftové filtry, vzduchové filtry, otoč ramene." },
+                { id: "p2", machine: "Harvester", title: "Velký servis (1000 Mth)", intervalMth: 1000, lastDoneMth: 0, tasks: "Kompletní filtry, olej pojezdu, hydraulika." }
+            ],
+            serviceLogs: []
+        };
+
+        let db = JSON.parse(localStorage.getItem(STORAGE_KEY)) || defaultData;
+        if (!db.geoportalUrl) db.geoportalUrl = "https://geoportal.lesycr.cz/";
+        if (!db.machines || db.machines.length === 0) db.machines = ["Harvester", "Vyvážečka"];
+        let currentDashDate = new Date();
+        let currentModalMode = 'plan';
+
+        function saveDB() { localStorage.setItem(STORAGE_KEY, JSON.stringify(db)); updateServiceAlertBadge(); }
+        function parseNum(v) { const n = parseFloat(String(v || '').replace(',', '.')); return isNaN(n) ? 0 : n; }
+        function showToast(m) { const t = document.getElementById('toast'); t.textContent = m; t.classList.remove('hidden'); setTimeout(() => t.classList.add('hidden'), 2200); }
+
+        window.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('shiftDate').value = new Date().toISOString().split('T')[0];
+            updateGeoLinks();
+            populateMachineSelects();
+            prefillStartMth();
+            renderDashboard();
+            renderService();
+            renderSettingsMachines();
+            updateServiceAlertBadge();
+        });
+
+        function updateGeoLinks() {
+            document.getElementById('topGeoLink').href = db.geoportalUrl;
+            document.getElementById('mainGeoLink').href = db.geoportalUrl;
+            document.getElementById('geoportalUrlInput').value = db.geoportalUrl;
+        }
+
+        function saveGeoportalUrl() {
+            const val = document.getElementById('geoportalUrlInput').value.trim();
+            if (val) { db.geoportalUrl = val; saveDB(); updateGeoLinks(); showToast('🗺️ Odkaz na mapu uložen'); }
+        }
+
+        function switchTab(tab) {
+            ['shift', 'dashboard', 'service', 'settings'].forEach(t => {
+                document.getElementById('tab-' + t).classList.toggle('hidden', t !== tab);
+                document.getElementById('nav-' + t).className = `flex flex-col items-center w-20 ${t === tab ? 'tab-active' : 'tab-inactive'} relative`;
+            });
+            const titles = { shift: 'Zápis směny', dashboard: 'Přehledy a výkazy', service: 'Servis a údržba', settings: 'Nastavení a záloha' };
+            document.getElementById('headerTitle').textContent = titles[tab];
+            if (tab === 'dashboard') renderDashboard();
+            if (tab === 'service') renderService();
+            if (tab === 'settings') renderSettingsMachines();
+        }
+
+        function populateMachineSelects() {
+            const opts = db.machines.map(m => `<option value="${m}">${m}</option>`).join('');
+            document.getElementById('shiftMachine').innerHTML = opts;
+            document.getElementById('serviceMachineSelect').innerHTML = opts;
+            document.getElementById('dashMachineFilter').innerHTML = `<option value="ALL">Všechny stroje</option>` + opts;
+        }
+
+        function getLatestMth(m) { return db.shifts.filter(s => s.machine === m).reduce((max, s) => Math.max(max, s.endMth), 0); }
+        function onShiftMachineChange() { prefillStartMth(); recalcShift(); }
+
+        function prefillStartMth() {
+            const last = getLatestMth(document.getElementById('shiftMachine').value);
+            document.getElementById('shiftStartMth').value = last > 0 ? last.toFixed(1) : '';
+            document.getElementById('lastMthHint').textContent = last > 0 ? `Poslední: ${last.toFixed(1)} Mth` : '';
+        }
+
+        function recalcShift() {
+            const w = Math.max(0, parseNum(document.getElementById('shiftEndMth').value) - parseNum(document.getElementById('shiftStartMth').value));
+            const v = parseNum(document.getElementById('shiftVolume').value);
+            document.getElementById('shiftWorkedHours').textContent = w.toFixed(1) + ' Mth';
+            document.getElementById('shiftProductivity').textContent = (w > 0 ? (v / w) : 0).toFixed(1) + ' m³ / Mth';
+        }
+
+        function saveShift() {
+            const startMth = parseNum(document.getElementById('shiftStartMth').value);
+            const endMth = parseNum(document.getElementById('shiftEndMth').value);
+            const volumeM3 = parseNum(document.getElementById('shiftVolume').value);
+            if (endMth < startMth) return alert('Koncový stav Mth je menší než počáteční.');
+            if (endMth === 0 && volumeM3 === 0) return alert('Zadej motohodiny nebo kubíky.');
+
+            db.shifts.unshift({
+                id: 's' + Date.now(),
+                date: document.getElementById('shiftDate').value,
+                machine: document.getElementById('shiftMachine').value,
+                porost: document.getElementById('shiftPorost').value.trim().toUpperCase(),
+                startMth, endMth, workedMth: Math.max(0, endMth - startMth), volumeM3,
+                note: document.getElementById('shiftNote').value.trim()
+            });
+            saveDB();
+            document.getElementById('shiftEndMth').value = '';
+            document.getElementById('shiftVolume').value = '';
+            document.getElementById('shiftNote').value = '';
+            prefillStartMth(); recalcShift();
+            showToast('✅ Směna uložena');
+        }
+
+        function changeMonth(d) { currentDashDate.setMonth(currentDashDate.getMonth() + d); renderDashboard(); }
+
+        function getFilteredShifts() {
+            const y = currentDashDate.getFullYear(), m = currentDashDate.getMonth(), f = document.getElementById('dashMachineFilter').value;
+            return db.shifts.filter(s => { const dt = new Date(s.date); return dt.getFullYear() === y && dt.getMonth() === m && (f === 'ALL' || s.machine === f); });
+        }
+
+        function renderDashboard() {
+            const months = ["Leden","Únor","Březen","Duben","Květen","Červen","Červenec","Srpen","Září","Říjen","Listopad","Prosinec"];
+            document.getElementById('dashMonthLabel').textContent = `${months[currentDashDate.getMonth()]} ${currentDashDate.getFullYear()}`;
+            const list = getFilteredShifts();
+            const m3 = list.reduce((a, s) => a + s.volumeM3, 0), mth = list.reduce((a, s) => a + s.workedMth, 0);
+            document.getElementById('dashTotalM3').textContent = m3.toFixed(1) + ' m³';
+            document.getElementById('dashTotalMth').textContent = mth.toFixed(1) + ' Mth';
+            document.getElementById('dashAvgProd').textContent = (mth > 0 ? m3 / mth : 0).toFixed(1) + ' m³/h';
+            document.getElementById('dashShiftCount').textContent = list.length + ' dní';
+
+            document.getElementById('dashShiftList').innerHTML = list.length ? list.map(s => `
+                <div class="ios-card p-3.5 space-y-1">
+                    <div class="flex justify-between items-center">
+                        <span class="font-bold text-sm">${s.date.split('-').reverse().join('.')} <span class="text-xs text-gray-500 font-normal">(${s.machine})</span> ${s.porost ? `<span class="bg-green-100 text-green-800 text-xs px-2 py-0.5 rounded ml-1">${s.porost}</span>` : ''}</span>
+                        <button onclick="deleteShift('${s.id}')" class="text-xs text-gray-300">🗑️</button>
+                    </div>
+                    <div class="flex justify-between text-xs pt-1">
+                        <span class="font-bold text-green-700">🌲 ${s.volumeM3.toFixed(1)} m³</span>
+                        <span class="text-gray-600">⏱️ ${s.workedMth.toFixed(1)} Mth (${s.startMth} → ${s.endMth})</span>
+                    </div>
+                    ${s.note ? `<div class="text-xs text-gray-500 pt-1">${s.note}</div>` : ''}
+                </div>`).join('') : `<div class="ios-card p-4 text-center text-xs text-gray-400">Žádné záznamy v tomto měsíci.</div>`;
+        }
+
+        function deleteShift(id) { if (confirm('Smazat směnu?')) { db.shifts = db.shifts.filter(s => s.id !== id); saveDB(); renderDashboard(); prefillStartMth(); } }
+
+        function shareMonthlyReport() {
+            const list = getFilteredShifts();
+            if (!list.length) return alert('Žádné směny v měsíci.');
+            const m3 = list.reduce((a, s) => a + s.volumeM3, 0), mth = list.reduce((a, s) => a + s.workedMth, 0);
+            let txt = `VÝKAZ PRÁCE – ${document.getElementById('dashMonthLabel').textContent}\nCelkem: ${m3.toFixed(1)} m³ | ${mth.toFixed(1)} Mth\n---\n`;
+            list.forEach(s => { txt += `${s.date.split('-').reverse().join('.')} [${s.machine}] | Porost: ${s.porost || '-'} | ${s.workedMth.toFixed(1)} Mth | ${s.volumeM3.toFixed(1)} m³\n`; });
+            if (navigator.share) navigator.share({ text: txt }); else { navigator.clipboard.writeText(txt); showToast('📋 Zkopírováno do schránky'); }
+        }
+
+        // EXPORT DAT PRO VEDOUCÍHO
+        function exportBossFile() {
+            const dataStr = JSON.stringify(db, null, 2);
+            const blob = new Blob([dataStr], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            const today = new Date().toISOString().split('T')[0];
+            a.href = url;
+            a.download = `vykaz-prace-${today}.lesnidata`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+            showToast('📤 Soubor pro vedoucího připraven k odeslání');
+        }
+
+        // NAČTENÍ DAT OD OPERÁTORA (MANAŽERSKÝ REŽIM)
+        function loadBossData(event) {
+            const file = event.target.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const imported = JSON.parse(e.target.result);
+                    if (imported && Array.isArray(imported.shifts)) {
+                        showBossModal(imported);
+                    } else {
+                        alert('Neplatný formát dat od operátora.');
+                    }
+                } catch (err) {
+                    alert('Chyba při otevírání souboru.');
+                }
+            };
+            reader.readAsText(file);
+        }
+
+        function showBossModal(data) {
+            const content = document.getElementById('bossModalContent');
+            let html = `<div class="bg-indigo-50 p-3 rounded-xl text-xs space-y-1">
+                <div>Celkem zapsaných směn: <b>${data.shifts.length}</b></div>
+                <div>Evidovaných strojů: <b>${data.machines.join(', ')}</b></div>
+            </div>`;
+
+            // Souhrn po strojích
+            html += `<h4 class="font-bold text-gray-900 pt-2">Přehled výkonu podle strojů:</h4>`;
+            data.machines.forEach(mach => {
+                const machShifts = data.shifts.filter(s => s.machine === mach);
+                const totalM3 = machShifts.reduce((sum, s) => sum + s.volumeM3, 0);
+                const totalMth = machShifts.reduce((sum, s) => sum + s.workedMth, 0);
+                html += `<div class="bg-gray-50 p-3 rounded-xl space-y-1 border border-gray-200">
+                    <div class="font-bold text-green-800">🚜 ${mach}</div>
+                    <div class="text-xs flex justify-between"><span>Vytěženo: <b>${totalM3.toFixed(1)} m³</b></span><span>Odpracováno: <b>${totalMth.toFixed(1)} Mth</b></span></div>
+                </div>`;
+            });
+
+            // Historie údržby a servisů
+            html += `<h4 class="font-bold text-gray-900 pt-2">Poslední servisy a údržba:</h4>`;
+            if (data.serviceLogs.length === 0) {
+                html += `<div class="text-xs text-gray-400 italic">Zatím žádné záznamy o servisu.</div>`;
+            } else {
+                data.serviceLogs.slice(0, 5).forEach(l => {
+                    html += `<div class="bg-amber-50 p-2.5 rounded-lg text-xs space-y-0.5 border border-amber-200">
+                        <div class="font-bold text-amber-900">${l.title} (${l.machine})</div>
+                        <div class="text-gray-600">${l.details} (při ${l.doneAtMth} Mth, dne ${l.date})</div>
+                    </div>`;
+                });
+            }
+
+            content.innerHTML = html;
+            document.getElementById('bossModal').classList.remove('hidden');
+        }
+
+        function closeBossModal() {
+            document.getElementById('bossModal').classList.add('hidden');
+        }
+
+        function renderService() {
+            const m = document.getElementById('serviceMachineSelect').value, cur = getLatestMth(m);
+            document.getElementById('serviceCurrentMth').textContent = cur.toFixed(1) + ' Mth';
+            const plans = db.servicePlans.filter(p => p.machine === m);
+            document.getElementById('servicePlansList').innerHTML = plans.map(p => {
+                const next = p.lastDoneMth + p.intervalMth, rem = next - cur;
+                const col = rem <= 0 ? 'border-red-600 text-red-700' : (rem <= 50 ? 'border-amber-500 text-amber-700' : 'border-green-600 text-green-700');
+                return `<div class="ios-card p-3.5 border-l-4 ${col} space-y-1.5">
+                    <div class="flex justify-between"><span class="font-bold text-sm text-gray-900">${p.title}</span><button onclick="deletePlan('${p.id}')" class="text-xs text-gray-300">🗑️</button></div>
+                    <div class="text-xs text-gray-600">${p.tasks}</div>
+                    <div class="flex justify-between items-center pt-1">
+                        <span class="text-xs font-bold">Příští v ${next} Mth (Zbývá: ${rem.toFixed(1)} Mth)</span>
+                        <button onclick="markPlanDone('${p.id}')" class="bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg">✅ Hotovo</button>
+                    </div>
+                </div>`;
+            }).join('');
+
+            const logs = db.serviceLogs.filter(l => l.machine === m);
+            document.getElementById('serviceLogsList').innerHTML = logs.map(l => `
+                <div class="ios-card p-3 text-xs space-y-1">
+                    <div class="flex justify-between font-bold"><span>${l.title}</span><span>při ${l.doneAtMth} Mth (${l.date})</span></div>
+                    <div class="text-gray-600">${l.details}</div>
+                </div>`).join('');
+        }
+
+        function markPlanDone(id) {
+            const p = db.servicePlans.find(x => x.id === id);
+            const cur = getLatestMth(p.machine) || (p.lastDoneMth + p.intervalMth);
+            const val = prompt(`Při kolika Mth byl proveden ${p.title}?`, cur);
+            if (val === null) return;
+            p.lastDoneMth = parseNum(val);
+            db.serviceLogs.unshift({ id: 'l' + Date.now(), date: new Date().toLocaleDateString('cs-CZ'), machine: p.machine, title: p.title, doneAtMth: p.lastDoneMth, details: p.tasks });
+            saveDB(); renderService(); showToast('🔧 Servis zapsán');
+        }
+
+        function openServiceModal(mode) {
+            currentModalMode = mode;
+            const m = document.getElementById('serviceMachineSelect').value;
+            document.getElementById('modalLastDoneInput').value = getLatestMth(m);
+            document.getElementById('modalTemplatesSection').classList.toggle('hidden', mode !== 'plan');
+            document.getElementById('modalIntervalBox').classList.toggle('hidden', mode !== 'plan');
+            document.getElementById('serviceModal').classList.remove('hidden');
+        }
+        function closeServiceModal() { document.getElementById('serviceModal').classList.add('hidden'); }
+        function fillTemplate(i) {
+            document.getElementById('modalTitleInput').value = i === 500 ? 'Malý servis (500 Mth)' : (i === 1000 ? 'Velký servis (1000 Mth)' : 'Servis (250 Mth)');
+            document.getElementById('modalIntervalInput').value = i;
+            document.getElementById('modalTasksInput').value = i === 500 ? 'Motorový olej + filtr, naftové a vzduchové filtry, otoč ramene.' : 'Kompletní filtry (hydraulické, kabinové, motorové, palivové), olej pojezdu, hydraulika.';
+        }
+        function saveServiceModal() {
+            const m = document.getElementById('serviceMachineSelect').value, t = document.getElementById('modalTitleInput').value || 'Servis', d = parseNum(document.getElementById('modalLastDoneInput').value), tasks = document.getElementById('modalTasksInput').value;
+            if (currentModalMode === 'plan') db.servicePlans.push({ id: 'p' + Date.now(), machine: m, title: t, intervalMth: parseNum(document.getElementById('modalIntervalInput').value) || 500, lastDoneMth: d, tasks });
+            else db.serviceLogs.unshift({ id: 'l' + Date.now(), date: new Date().toLocaleDateString('cs-CZ'), machine: m, title: t, doneAtMth: d, details: tasks });
+            saveDB(); closeServiceModal(); renderService();
+        }
+        function deletePlan(id) { if (confirm('Smazat interval?')) { db.servicePlans = db.servicePlans.filter(p => p.id !== id); saveDB(); renderService(); } }
+        function updateServiceAlertBadge() {
+            const alert = db.servicePlans.some(p => { const c = getLatestMth(p.machine); return c > 0 && ((p.lastDoneMth + p.intervalMth) - c) <= 50; });
+            document.getElementById('serviceAlertDot').classList.toggle('hidden', !alert);
+        }
+
+        function renderSettingsMachines() {
+            document.getElementById('settingsMachinesList').innerHTML = db.machines.map(m => `
+                <div class="flex justify-between items-center bg-gray-50 px-3 py-2 rounded-lg text-sm font-semibold">
+                    <span>${m}</span>
+                    ${db.machines.length > 1 ? `<button onclick="removeMachine('${m}')" class="text-xs text-red-500">Odebrat</button>` : ''}
+                </div>`).join('');
+        }
+        function addMachine() {
+            const v = document.getElementById('newMachineInput').value.trim();
+            if (v && !db.machines.includes(v)) {
+                db.machines.push(v);
+                saveDB(); populateMachineSelects(); renderSettingsMachines();
+                document.getElementById('newMachineInput').value = '';
+                showToast('🚜 Stroj přidán');
+            }
+        }
+        function removeMachine(name) {
+            if (db.machines.length <= 1) return alert('V aplikaci musí zůstat alespoň jeden stroj.');
+            if (confirm(`Odebrat stroj „${name}“?`)) {
+                db.machines = db.machines.filter(m => m !== name);
+                saveDB(); populateMachineSelects(); renderSettingsMachines();
+            }
+        }
+
+        function exportBackupFile() {
+            const a = document.createElement('a');
+            a.href = URL.createObjectURL(new Blob([JSON.stringify(db, null, 2)], { type: 'application/json' }));
+            a.download = `lesni-denik-zaloha.json`; a.click();
+        }
+    </script>
+</body>
+</html>
